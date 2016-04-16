@@ -2,10 +2,10 @@ struct railTrack(
 	position =[0,0,0],
 	heading = 0,
 	fn turnRight angle=(
-		heading=heading-angle
+		heading=heading+angle
 	),
 	fn turnLeft angle=(
-		heading=heading+angle
+		heading=heading-angle
 	),
 	fn moveForward numUnits = (
 		newPosition=[cos heading,0,sin heading]
@@ -14,7 +14,7 @@ struct railTrack(
 	)
 )
 
-fn generateSpline numVertices length angle basis: = (
+fn generateSpline numVertices length angle basis: angleOffset:0 = (
 	-- Create spline shape
 	local ctn = splineShape()
 	local spIdx = addNewSpline ctn
@@ -27,17 +27,22 @@ fn generateSpline numVertices length angle basis: = (
 	updateShape ctn
 	
 	-- Add bend modifier and collapse
+	
 	addModifier ctn (Bend angle:angle axis:1)
 	convertto ctn SplineShape
 	
+	
 	-- If basis provided, place at end of basis and weld
-	if basis != unsupplied then (
+	
+	if ( basis != undefined) then (
 		local lastSpIdx = numSplines basis
 		local lastKnotIdx = numKnots basis lastSpIdx
 		local lastKnotPos = getKnotPoint basis lastSpIdx lastKnotIdx
 		ctn.position = lastKnotPos
 		
 		-- Need to rotate new piece to total track rotation so far here...
+		rotate ctn (angleaxis -(angleOffset+angle) [0,0,1])
+		print ("ANGLE : "  + (angleOffset as string))
 		addAndWeld basis ctn 0.1
 		updateShape basis
 		global TESTCTN
@@ -45,56 +50,82 @@ fn generateSpline numVertices length angle basis: = (
 		ctn = basis
 	)
 	
-	move ctn [0, -(length/2), 0]
+-- 	move ctn [0, -(length/2), 0]
+	
 	return ctn
 	
 )
-fn generateRail groupName:"railStraight" trackSegs:1 angleCurve:0 basis: =(
-	
-	trackLeft = box length:155 width:2 height:1.5 lengthsegs: trackSegs
-	trackRight = box length:155 width:2 height:1.5 lengthsegs: trackSegs
-	
-	trackLeft.wirecolor = (color 192 192 192)
-	trackRight.wirecolor = (color 192 192 192)
-	
-	move trackLeft [-8,0,0]
-	move trackRight [8,0,0]
-	
-	rail = convertToPoly(trackLeft)
-	rail.attach trackRight rail
-	
-	for i = 1 to 15 do
-	(
-		plank = box length:5 width:30 height:1
-		plank.wirecolor = (color 139 69 19)
-		plank.pos = [0, (trackLeft.pos.y - (160/2)), 0]
-		move plank [0,(10*i),-0.75]
-
-		rail.attach plank rail
+fn generateRail trackArray =(
+	track = railTrack()
+	spline = undefined
+	for i = 1 to trackArray.count do (
+		case of (
+			(trackArray[i]=="straight"):
+			(
+				print ("STRAIGHT : "  + (track.heading as string))
+				spline = generateRailBase basis:spline angleOffset:track.heading
+				
+			)
+			(trackArray[i]=="left"):
+			(
+				print ("LEFT : "  + (track.heading as string))
+				spline = generateRailCurved angleCurve:-45 basis:spline angleOffset:track.heading
+				
+				track.turnLeft(45) 
+			)
+			(trackArray[i]=="right"):
+			(
+				print ("RIGHT : "  + (track.heading as string))
+				spline = generateRailCurved basis:spline angleOffset:track.heading
+				
+				track.turnRight(45) 
+			)
+		)
 	)
+)
+fn generateRailBase groupName:"railStraight" trackSegs:1 angleCurve:0 basis: angleOffset:0 =(
 	
-	group rail prefix:groupName select:true
+-- 	trackLeft = box length:155 width:2 height:1.5 lengthsegs: trackSegs
+-- 	trackRight = box length:155 width:2 height:1.5 lengthsegs: trackSegs
+-- 	
+-- 	trackLeft.wirecolor = (color 192 192 192)
+-- 	trackRight.wirecolor = (color 192 192 192)
+-- 	
+-- 	move trackLeft [-8,0,0]
+-- 	move trackRight [8,0,0]
+-- 	
+-- 	rail = convertToPoly(trackLeft)
+-- 	rail.attach trackRight rail
+-- 	
+-- 	for i = 1 to 15 do
+-- 	(
+-- 		plank = box length:5 width:30 height:1
+-- 		plank.wirecolor = (color 139 69 19)
+-- 		plank.pos = [0, (trackLeft.pos.y - (160/2)), 0]
+-- 		move plank [0,(10*i),-0.75]
 
-	if angleCurve != 0 do 
-	(
+-- 		rail.attach plank rail
+-- 	)
+-- 	
+-- 	group rail prefix:groupName select:true
 
- 		addModifier rail (bend angle:angleCurve axis:1)
-		rotate rail (quat (-angleCurve/2) [0,0,1])
+-- 	if angleCurve != 0 do 
+-- 	(
 
-	)
-	spline = generateSpline 14 155 angleCurve basis:basis
-	rail.position = spline.center
-	if angleCurve > 0 do move rail [-20, 10,0]
-	if angleCurve < 0 do move rail [8, 0,0]
+--  		addModifier rail (bend angle:angleCurve axis:1)
+-- 		rotate rail (quat (-angleCurve/2) [0,0,1])
+
+-- 	)
+	spline = generateSpline 14 155 angleCurve basis:basis angleOffset:angleOffset
+-- 	rail.center =  spline.pos
+-- 	if angleCurve > 0 do move rail [-20, 10,0]
+-- 	if angleCurve < 0 do move rail [8, 0,0]
 	return spline 
 )
-
-
-fn generateRailCurved angleCurve:45 groupName:"railLeft" basis: =(
+fn generateRailCurved angleCurve:45 groupName:"railLeft" basis: angleOffset:2 =(
 	if angleCurve > 0 do groupName = "railRight"
-	return generateRail trackSegs:15 groupName:groupName angleCurve:angleCurve basis:basis
+	return generateRailBase trackSegs:15 groupName:groupName angleCurve:angleCurve basis:basis
 )
-
 fn generateDecoration decorationName:"lightPost" position:[0,0,0]=(
 	case of 
 	(
@@ -112,7 +143,6 @@ fn generateDecoration decorationName:"lightPost" position:[0,0,0]=(
 		)
 	)
 )
-
 fn generateDecorationLightPost position:[0,0,0]=(
 	lightPost = #()
 	append lightPost (cylinder radius:3 height:1 sides:8)
@@ -127,7 +157,6 @@ fn generateDecorationLightPost position:[0,0,0]=(
 	in coordsys local $.pos = position
 	max select none
 )
-
 fn generateDecorationWaterTower position:[0,0,0]=(
 	waterTower = #()
 	append waterTower (cylinder radius:1 height:40 sides:8)
@@ -155,7 +184,6 @@ fn generateDecorationWaterTower position:[0,0,0]=(
 	in coordsys local $.pos = position
 	max select none
 )
-
 fn generateDecorationStation position:[0,0,0]=(
 	station = #()
 	append station (box length:50 width:20 height:1 )
@@ -175,6 +203,10 @@ fn generateDecorationStation position:[0,0,0]=(
 )
 
 
--- spline = generateRail()
--- spline = generateRailCurved basis:spline
--- generateRailCurved angleCurve:45 basis:spline
+fn main=(
+	theTrack = #("left","straight","right","straight")
+	generateRail theTrack
+)
+
+
+main()
