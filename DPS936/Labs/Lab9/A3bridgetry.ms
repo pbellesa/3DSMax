@@ -16,14 +16,42 @@ struct railTrack(
 global track = railTrack()
 global decorationPosition = [0,0,0]
 
-fn generateSpline numVertices length angle basis: angleOffset:0 = (
+fn generateSpline numVertices length angle height:0 basis: angleOffset:0  = (
 	
 	local ctn = splineShape()
 	local spIdx = addNewSpline ctn
 	local pos = [0,0,0]
 	addKnot ctn spIdx #smooth #curve pos
+	
+	direction = 1
+	bridgeTop = numVertices / 2
+	
+	if height > 0 then (
+		numVertices = numVertices 
+		length = length * 2
+	)
 	for i = 2 to numVertices do ( 
 		pos.y += length / ((numVertices - 1) as float)
+		
+		if height > 0 do (
+			
+			if (pos.z < (height/2)  and direction == 1) then (
+-- 				print pos.z
+				pos.z += (height * 2) / ((numVertices - 1) as float)
+			)
+			if(pos.z > (height/2) and bridgeTop > 0) then (
+				bridgeTop = bridgeTop - 1
+				
+			)
+			
+			if(bridgeTop == 0) then (
+				direction = -1
+				pos.z -= (height * 2) / ((numVertices - 1) as float)
+				print pos.z
+			)
+				
+			
+		)
 		addKnot ctn spIdx #smooth #curve pos
 		
 	)
@@ -52,13 +80,19 @@ fn generateSpline numVertices length angle basis: angleOffset:0 = (
 fn generateRail trackArray =(
 
 	spline = undefined
+	count = trackArray.count
+	for i =1 to trackArray.count do (
+		if trackArray[i] == "bridge" do
+			count = count + 1
+	)
 	for i = 1 to trackArray.count do (
 		case of (
 			(trackArray[i]=="straight"):
 			(
-				spline = generateRailBase basis:spline angleOffset:track.heading position:i totalTracks:trackArray.count previousTrack:rail
+				spline = generateRailBase basis:spline angleOffset:track.heading position:i totalTracks:count previousTrack:rail
 				track.moveForward(155)
-				transformPos = [-40,-80,-20]
+				transformPos = [0,0,-20]
+				print track.heading
 				if track.heading < 0 then direction = 1
 				else direction = -1
 				case of (
@@ -76,7 +110,7 @@ fn generateRail trackArray =(
 			)
 			(trackArray[i]=="left"):
 			(
-				spline = generateRailCurved angleCurve:-45 basis:spline angleOffset:track.heading position:i totalTracks:trackArray.count previousTrack:rail	
+				spline = generateRailCurved angleCurve:-45 basis:spline angleOffset:track.heading position:i totalTracks:count previousTrack:rail	
 				track.moveForward(155)
 				generateDecorationLightPost position:(decorationPosition + [(sin track.heading *155),(cos track.heading*155),-20]) 
 				track.turnLeft(45)
@@ -84,22 +118,27 @@ fn generateRail trackArray =(
 			)
 			(trackArray[i]=="right"):
 			(
-				spline = generateRailCurved basis:spline angleOffset:track.heading position:i totalTracks:trackArray.count previousTrack:rail
+				spline = generateRailCurved basis:spline angleOffset:track.heading position:i totalTracks:count previousTrack:rail
 				
 				track.moveForward(155)
 				generateDecorationWaterTower position:(decorationPosition + [(sin track.heading *155),(cos track.heading*155),-20]) 
 				track.turnRight(45) 
 				
 			)
+			(trackArray[i]=="bridge"):
+			(
+				spline = generateRailBase length:310 groupName:"bridge" tracksegs:30 basis:spline height:90 angleOffset:track.heading position:i totalTracks:count previousTrack:rail
+				track.moveForward(310)
+			)
 		)
 		
 	
 	)
 )
-fn generateRailBase groupName:"railStraight" trackSegs:1 angleCurve:0 basis: angleOffset:0 totalTracks:1 position:1 =(
+fn generateRailBase groupName:"railStraight" height:0 length:155 trackSegs:15 angleCurve:0 basis: angleOffset:0 totalTracks:1 position:1 =(
 	
-	trackLeft = box length:155 width:2 height:1.5 lengthsegs: trackSegs
-	trackRight = box length:155 width:2 height:1.5 lengthsegs: trackSegs
+	trackLeft = box length:length width:2 height:1.5 lengthsegs: trackSegs
+	trackRight = box length:length width:2 height:1.5 lengthsegs: trackSegs
 	
 	move trackLeft [-8,0,0]
 	move trackRight [8,0,0]
@@ -107,11 +146,11 @@ fn generateRailBase groupName:"railStraight" trackSegs:1 angleCurve:0 basis: ang
 	rail = convertToPoly(trackLeft)
 	rail.attach trackRight rail
 	
-	for i = 1 to 15 do
+	for i = 1 to trackSegs do
 	(
 		plank = box length:5 width:30 height:1
 		plank.wirecolor = (color 139 69 19)
-		plank.pos = [0, (trackLeft.pos.y - (160/2)), 0]
+		plank.pos = [0, (trackLeft.pos.y - ((length + 5)/2)), 0]
 		move plank [0,(10*i),-0.75]
 
 		rail.attach plank rail
@@ -121,14 +160,11 @@ fn generateRailBase groupName:"railStraight" trackSegs:1 angleCurve:0 basis: ang
 	rotate rail (angleaxis -(angleOffset) [0,0,1])
 
 	
-	spline = generateSpline 14 155 angleCurve basis:basis angleOffset:angleOffset
+	spline = generateSpline 14 155 angleCurve height:height basis:basis angleOffset:angleOffset
 	
 	addModifier rail (spacePathDeform path:spline axis:1 rotation:-90 Percent_along_path:(100 * ((position-1.0)/(totalTracks) + (0.5/totalTracks)) )  )
- 	-- set the rail follow the path
-	rail.transform = spline.transform 
+ 	rail.transform = spline.transform 
 	move rail [-8.5,0,-20]
-
-
 	return spline 
 )
 fn generateRailCurved angleCurve:45 groupName:"railLeft" basis: angleOffset:0 position:1 totalTracks:1=(
@@ -198,83 +234,10 @@ fn generateDecorationStation position:[0,0,0]=(
 	
 )
 
-struct Rock(
-	position =[-2000,-5800,-100],
-	heading = 90,
-	fn turnRight angle=(
-		heading=heading-angle
-	),
-	fn turnLeft angle=(
-		heading=heading+angle
-	),
-	fn moveForward numUnits = (
-		newPosition=[cos heading,sin heading,0]
-		newPosition=numUnits * newPosition
-		position=position + newPosition
-	)
-)
 
-fn drawRocks codeString=(
-	t=Rock()
-	array = #()
-	for i = 1 to codeString.count do(
-		case of (
-			(codeString[i]=="A" or codeString[i]=="B"):
-				(
-					c=Pyramid widthsegs:1 depthSegs:1 heightsegs:1 width:(random 500 1000) depth:(random 500 1000) height:(random 500 1000)
-					-- make it look like a rock (sorta)
-					addModifier c (meshsmooth iterations:2)
-					addModifier c (Noisemodifier fractal:on strength:[30,30,30])
-					c.wirecolor = (color 139 69 19)
-					rotate c (angleaxis -(t.heading) [0,0,1])
-					move c t.position
-					append array c
-					t.moveForward(200)
-				)
-			(codeString[i]=="+"):
-				t.turnLeft(30)
-			(codeString[i]=="-"):
-				t.turnRight(30)
-			
-		)
-	)
-	group array prefix:"Mountain"
-)
-
-fn substituteCodeString codeString=(
-	newCodeString = ""
-	for i = 1 to codeString.count do(
-		case of (
-			(codeString[i]=="A"): 
-				append newCodeString "B-A-B"
-			(codeString[i]=="B"):
-				append newCodeString "A+B+A"
-			(codeString[i]=="-"):
-				append newCodeString "-"
-			(codeString[i]=="+"):
-				append newCodeString "+"
-		)
-	)
-	newCodeString 
-	return newCodeString
-)
-
-fn generateRock codeString numGenerations= (
-	newCodeString = codeString
-	for i = 1 to numGenerations do (
-		newCodeString = substituteCodeString newCodeString
-	)
-	return newCodeString
-)
-
-fn generateRocks = (
-	codeString = generateRock "A+B+A" 3
-	drawRocks codeString
-)
-
-fn a3main=(
+fn main=(
 	theTrack = #(
-    "straight",
+	"straight",
     "left",
     "left",
     "right",
@@ -285,7 +248,7 @@ fn a3main=(
     "left",
     "left",
     "straight",
-    "straight",
+    "bridge",
     "straight",
     "left",
     "left",
@@ -293,10 +256,11 @@ fn a3main=(
     "straight",
     "straight"
 
+
 )
 	generateRail theTrack
-	generateRocks()
+	
 )
 
 
-a3main()
+main()
