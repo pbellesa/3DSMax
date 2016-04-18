@@ -17,7 +17,7 @@ global track = railTrack()
 global decorationPosition = [0,0,0]
 
 fn generateSpline numVertices length angle basis: angleOffset:0 = (
-	-- Create spline shape
+	
 	local ctn = splineShape()
 	local spIdx = addNewSpline ctn
 	local pos = [0,0,0]
@@ -28,22 +28,17 @@ fn generateSpline numVertices length angle basis: angleOffset:0 = (
 		
 	)
 	updateShape ctn
-	
-	-- Add bend modifier and collapse
-	
+		
 	addModifier ctn (Bend angle:angle axis:1)
 	convertto ctn SplineShape
-	
-	
-	-- If basis provided, place at end of basis and weld
 	
 	if ( basis != undefined) then (
 		local lastSpIdx = numSplines basis
 		local lastKnotIdx = numKnots basis lastSpIdx
 		local lastKnotPos = getKnotPoint basis lastSpIdx lastKnotIdx
 		ctn.position = lastKnotPos
+		decorationPosition = lastKnotPos
 
-		-- Need to rotate new piece to total track rotation so far here...
 		rotate ctn (angleaxis -(angleOffset) [0,0,1])
 		addAndWeld basis ctn 0.1
 		updateShape basis
@@ -52,9 +47,7 @@ fn generateSpline numVertices length angle basis: angleOffset:0 = (
 		ctn = basis
 	)
 	
-	
 	return ctn
-	
 )
 fn generateRail trackArray =(
 
@@ -65,21 +58,36 @@ fn generateRail trackArray =(
 			(
 				spline = generateRailBase basis:spline angleOffset:track.heading position:i totalTracks:trackArray.count previousTrack:rail
 				track.moveForward(155)
-				generateDecorationStation position:decorationPosition
+				transformPos = [-40,-40,-20]
+				if track.heading < 0 then direction = 1
+				else direction = -1
+				case of (
+					((abs track.heading  == 0)): 
+						transformPos = [40,(80 * direction),-20]
+					((abs track.heading  == 90)): 
+						transformPos = [(-80 * direction),40,-20]
+					((abs track.heading  == 180)): 
+						transformPos = [-40,(-80 * direction),-20]
+					((abs track.heading  == 270)): 
+						transformPos = [(80 * direction),-40,-20]
+				)
+				
+				generateDecorationStation position:(decorationPosition + transformPos) 
 			)
 			(trackArray[i]=="left"):
 			(
 				spline = generateRailCurved angleCurve:-45 basis:spline angleOffset:track.heading position:i totalTracks:trackArray.count previousTrack:rail	
 				track.moveForward(155)
-				generateDecorationLightPost position:decorationPosition
+				generateDecorationLightPost position:(decorationPosition + [(sin track.heading *155),(cos track.heading*155),-20]) 
 				track.turnLeft(45)
 	
 			)
 			(trackArray[i]=="right"):
 			(
 				spline = generateRailCurved basis:spline angleOffset:track.heading position:i totalTracks:trackArray.count previousTrack:rail
-				generateDecorationWaterTower position:decorationPosition
+				
 				track.moveForward(155)
+				generateDecorationWaterTower position:(decorationPosition + [(sin track.heading *155),(cos track.heading*155),-20]) 
 				track.turnRight(45) 
 				
 			)
@@ -119,7 +127,7 @@ fn generateRailBase groupName:"railStraight" trackSegs:1 angleCurve:0 basis: ang
  	rail.transform = spline.transform 
 	move rail [-8.5,0,-20]
 -- 	decorationPosition = spline.transform
-	print spline.pos
+
 	return spline 
 )
 fn generateRailCurved angleCurve:45 groupName:"railLeft" basis: angleOffset:0 position:1 totalTracks:1=(
@@ -138,6 +146,7 @@ fn generateDecorationLightPost position:[0,0,0]=(
 	move lightPost[3] [0,0,26]
 	move lightPost[4] [0,0,31]
 	group lightPost prefix:"lightPost" 
+	
 	move lightPost position
 	
 )
@@ -180,13 +189,19 @@ fn generateDecorationStation position:[0,0,0]=(
 	move station[4] [0,0,26]
 	
 	
-	group station prefix:"station" 
-	move station position
+	stationPoly = convertToPoly(station[1])
+	for i = 2 to station.count do stationPoly.attach station[i] stationPoly
+	rotate stationPoly (angleaxis -(track.heading) [0,0,1])
+	move stationPoly position
+	max select none
+	
 )
 
 
 fn main=(
 	theTrack = #(
+		    "right",
+    "right",
     "straight",
     "left",
     "left",
