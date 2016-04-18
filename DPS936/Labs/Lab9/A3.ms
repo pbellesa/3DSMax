@@ -58,12 +58,12 @@ fn generateRail trackArray =(
 			(
 				spline = generateRailBase basis:spline angleOffset:track.heading position:i totalTracks:trackArray.count previousTrack:rail
 				track.moveForward(155)
-				transformPos = [-40,-40,-20]
+				transformPos = [-40,-80,-20]
 				if track.heading < 0 then direction = 1
 				else direction = -1
 				case of (
 					((abs track.heading  == 0)): 
-						transformPos = [40,(80 * direction),-20]
+						transformPos = [40,(-80 * direction),-20]
 					((abs track.heading  == 90)): 
 						transformPos = [(-80 * direction),40,-20]
 					((abs track.heading  == 180)): 
@@ -124,9 +124,10 @@ fn generateRailBase groupName:"railStraight" trackSegs:1 angleCurve:0 basis: ang
 	spline = generateSpline 14 155 angleCurve basis:basis angleOffset:angleOffset
 	
 	addModifier rail (spacePathDeform path:spline axis:1 rotation:-90 Percent_along_path:(100 * ((position-1.0)/(totalTracks) + (0.5/totalTracks)) )  )
- 	rail.transform = spline.transform 
+ 	-- set the rail follow the path
+	rail.transform = spline.transform 
 	move rail [-8.5,0,-20]
--- 	decorationPosition = spline.transform
+
 
 	return spline 
 )
@@ -197,11 +198,82 @@ fn generateDecorationStation position:[0,0,0]=(
 	
 )
 
+struct Rock(
+	position =[-2000,-5800,-100],
+	heading = 90,
+	fn turnRight angle=(
+		heading=heading-angle
+	),
+	fn turnLeft angle=(
+		heading=heading+angle
+	),
+	fn moveForward numUnits = (
+		newPosition=[cos heading,sin heading,0]
+		newPosition=numUnits * newPosition
+		position=position + newPosition
+	)
+)
+
+fn drawRocks codeString=(
+	t=Rock()
+	array = #()
+	for i = 1 to codeString.count do(
+		case of (
+			(codeString[i]=="A" or codeString[i]=="B"):
+				(
+					c=Pyramid widthsegs:1 depthSegs:1 heightsegs:1 width:(random 500 1000) depth:(random 500 1000) height:(random 500 1000)
+					-- make it look like a rock (sorta)
+					addModifier c (meshsmooth iterations:2)
+					addModifier c (Noisemodifier fractal:on strength:[30,30,30])
+					c.wirecolor = (color 139 69 19)
+					rotate c (angleaxis -(t.heading) [0,0,1])
+					move c t.position
+					append array c
+					t.moveForward(200)
+				)
+			(codeString[i]=="+"):
+				t.turnLeft(30)
+			(codeString[i]=="-"):
+				t.turnRight(30)
+			
+		)
+	)
+	group array prefix:"Mountain"
+)
+
+fn substituteCodeString codeString=(
+	newCodeString = ""
+	for i = 1 to codeString.count do(
+		case of (
+			(codeString[i]=="A"): 
+				append newCodeString "B-A-B"
+			(codeString[i]=="B"):
+				append newCodeString "A+B+A"
+			(codeString[i]=="-"):
+				append newCodeString "-"
+			(codeString[i]=="+"):
+				append newCodeString "+"
+		)
+	)
+	newCodeString 
+	return newCodeString
+)
+
+fn generateRock codeString numGenerations= (
+	newCodeString = codeString
+	for i = 1 to numGenerations do (
+		newCodeString = substituteCodeString newCodeString
+	)
+	return newCodeString
+)
+
+fn generateRocks = (
+	codeString = generateRock "A+B+A" 3
+	drawRocks codeString
+)
 
 fn main=(
 	theTrack = #(
-		    "right",
-    "right",
     "straight",
     "left",
     "left",
@@ -223,7 +295,7 @@ fn main=(
 
 )
 	generateRail theTrack
-	
+	generateRocks()
 )
 
 
